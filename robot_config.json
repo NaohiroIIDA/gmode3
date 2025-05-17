@@ -1,0 +1,76 @@
+{
+    "links": [
+        {
+            "name": "Front_leg",
+            "length": 0.20,
+            "mass": 3.0,
+            "initial_angle": 90.0,
+            "fixed_angle": true,
+            "base_position": [-0.3, 0.0]
+        },
+        {
+            "name": "Rear_leg",
+            "length": 0.20,
+            "mass": 3.0,
+            "initial_angle": 90.0,
+            "fixed_angle": true,
+            "base_position": [0.3, 0.0]
+        },
+        {
+            "name": "Base_Frame",
+            "length": 0.6,
+            "mass": 10.0,
+            "initial_angle": 0.0,
+            "fixed_angle": true,
+            "base_position": [-0.3, 0.2]
+        },
+        {
+            "name": "Battery",
+            "length": 0.1,
+            "mass": 10.0,
+            "initial_angle": 60.0,
+            "fixed_angle": true,
+            "base_position": [0.2, 0.2]
+        },
+        {
+            "name": "Body_1",
+            "length": 0.6,
+            "mass": 12.0,
+            "initial_angle": 30.0,
+            "parent_link": "Base_Frame",
+            "connection_point": [0.2, 0.0]
+        },
+        {
+            "name": "Body_2",
+            "length": 0.5,
+            "mass": 12.0,
+            "initial_angle": 135.0,
+            "parent_link": "Body_1",
+            "connection_point": [0.6, 0.0]
+        },
+        {
+            "name": "Head",
+            "length": 0.1,
+            "mass": 2.0,
+            "initial_angle": 90.0,
+            "parent_link": "Body_2",
+            "connection_point": [0.5, 0.0]
+        },
+        {
+            "name": "arm_1",
+            "length": 0.3,
+            "mass": 5.0,
+            "initial_angle": -90.0,
+            "parent_link": "Body_2",
+            "connection_point": [0.5, 0.0]
+        },
+        {
+            "name": "arm_2",
+            "length": 0.3,
+            "mass": 5.0,
+            "initial_angle": -140.0,
+            "parent_link": "arm_1",
+            "connection_point": [0.3, 0.0]
+        }
+    ]
+}
