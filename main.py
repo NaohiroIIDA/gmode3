@@ -32,6 +32,28 @@ class RobotVisualizerApp(QMainWindow):
         control_layout = QVBoxLayout(control_panel)
         layout.addWidget(control_panel)
 
+        # リセットボタンの作成
+        reset_layout = QHBoxLayout()
+        reset_btn = QPushButton("角度をリセット")
+        reset_btn.clicked.connect(self.reset_angles)
+        reset_layout.addStretch()
+        reset_layout.addWidget(reset_btn)
+        control_layout.addLayout(reset_layout)
+
+        # 地面の傾斜角度スライダーの作成
+        slope_label = QLabel("地面の傾斜: 0°")
+        control_layout.addWidget(slope_label)
+        
+        slope_slider = QSlider(Qt.Horizontal)
+        slope_slider.setMinimum(-45)
+        slope_slider.setMaximum(45)
+        slope_slider.setValue(0)
+        slope_slider.valueChanged.connect(lambda value: self.update_slope(value))
+        control_layout.addWidget(slope_slider)
+        
+        self.slope_slider = slope_slider
+        self.slope_label = slope_label
+
         # 各リンクの角度スライダーを作成
         self.sliders = {}
         self.angle_labels = {}
@@ -88,6 +110,11 @@ class RobotVisualizerApp(QMainWindow):
         # 重心情報表示用のラベル
         self.weight_info_label = QLabel("地面接点の重量: ")
         control_layout.addWidget(self.weight_info_label)
+
+        # 転倒判定表示用のラベル
+        self.stability_label = QLabel("安定性: 安定")
+        self.stability_label.setStyleSheet("QLabel { color: green; }")
+        control_layout.addWidget(self.stability_label)
         
         # ズーム率の初期値
         self.zoom_level = 100
@@ -127,6 +154,26 @@ class RobotVisualizerApp(QMainWindow):
         # ロボットの再描画
         self.update_robot_visualization()
 
+    def update_slope(self, value):
+        # 傾斜角度の更新
+        self.slope_label.setText(f"地面の傾斜: {value}°")
+        self.update_robot_visualization()
+
+    def reset_angles(self):
+        # すべてのスライダーを初期値に戻す
+        for link in self.robot_config['links']:
+            if not link.get('fixed_angle', False):
+                initial_angle = link['initial_angle']
+                self.sliders[link['name']].setValue(int(initial_angle))
+                self.angle_labels[link['name']].setText(f"{link['name']}の角度: {initial_angle}°")
+        
+        # 傾斜も0度に戻す
+        self.slope_slider.setValue(0)
+        self.slope_label.setText("地面の傾斜: 0°")
+        
+        # 表示を更新
+        self.update_robot_visualization()
+
     def get_link_by_name(self, name):
         """名前からリンクを取得"""
         for link in self.robot_config['links']:
@@ -134,29 +181,57 @@ class RobotVisualizerApp(QMainWindow):
                 return link
         return None
 
-    def calculate_link_position(self, link):
-        """リンクの位置を計算（親リンクの位置を考慮）"""
-        angle_rad = np.radians(self.sliders[link['name']].value())
-        length = link['length']
+    def get_absolute_angle(self, link):
+        """リンクの絶対角度を計算"""
+        angle = self.sliders[link['name']].value()
+        
+        # 傾斜角度を取得
+        slope_angle = np.degrees(np.radians(self.slope_slider.value()))
+        
+        if link.get('fixed_angle', False):
+            # 固定リンクは傾斜に追従
+            return angle + slope_angle
+        elif 'parent_link' in link:
+            # 親リンクの絶対角度を考慮
+            parent = self.get_link_by_name(link['parent_link'])
+            parent_absolute_angle = self.get_absolute_angle(parent)
+            return angle + parent_absolute_angle - self.sliders[parent['name']].value()
+        return angle
 
-        if 'parent_link' in link and 'connection_point' in link:
-            # 親リンクの位置を取得
+    def calculate_link_position(self, link):
+        # 傾斜角度を取得
+        slope_angle = np.radians(self.slope_slider.value())
+        rotation_matrix = np.array([
+            [np.cos(slope_angle), -np.sin(slope_angle)],
+            [np.sin(slope_angle), np.cos(slope_angle)]
+        ])
+
+        # 親リンクの接続点を取得
+        if 'parent_link' in link:
             parent = self.get_link_by_name(link['parent_link'])
             parent_base, parent_end = self.calculate_link_position(parent)
             
-            # 親リンクでの接続点の位置を計算
-            parent_angle = np.radians(self.sliders[parent['name']].value())
-            connection = np.array(link['connection_point'])
-            dx = connection[0] * np.cos(parent_angle) - connection[1] * np.sin(parent_angle)
-            dy = connection[0] * np.sin(parent_angle) + connection[1] * np.cos(parent_angle)
+            # 親リンクの絶対角度を使用
+            parent_absolute_angle = self.get_absolute_angle(parent)
             
-            # 基準位置を親リンクの位置から計算
+            # 接続点の位置を計算
+            connection = link['connection_point']
+            dx = connection[0] * np.cos(np.radians(parent_absolute_angle))
+            dy = connection[0] * np.sin(np.radians(parent_absolute_angle))
             base_pos = parent_base + np.array([dx, dy])
         else:
             # 基準位置が直接指定されている場合
             base_pos = np.array(link.get('base_position', [0, 0]))
+            if link.get('fixed_angle', False):
+                # 地面に固定されているリンクは傾斜に合わせて回転
+                base_pos = rotation_matrix @ base_pos
+
+        # リンクの絶対角度を計算
+        absolute_angle = self.get_absolute_angle(link)
 
         # 終端位置を計算
+        length = link['length']
+        angle_rad = np.radians(absolute_angle)
         end_pos = base_pos + length * np.array([np.cos(angle_rad), np.sin(angle_rad)])
         return base_pos, end_pos
 
@@ -239,6 +314,28 @@ class RobotVisualizerApp(QMainWindow):
             f"右足の反力: {right_force:.1f} N"
         )
         
+        # 転倒判定
+        left_foot = positions[0][0]   # Front_legの接地点
+        right_foot = positions[1][0]  # Rear_legの接地点
+        
+        # 支持多角形（この場合は線分）の範囲内に重心の水平位置があるかチェック
+        is_stable = left_foot[0] <= com[0] <= right_foot[0]
+        
+        # 転倒判定の表示を更新
+        if is_stable:
+            self.stability_label.setText("安定性: 安定")
+            self.stability_label.setStyleSheet("QLabel { color: green; }")
+        else:
+            self.stability_label.setText("安定性: 不安定（転倒の危険）")
+            self.stability_label.setStyleSheet("QLabel { color: red; }")
+
+        # 地面の描画（傾斜あり）
+        slope_angle = np.radians(self.slope_slider.value())
+        xlim = ax.get_xlim()
+        x = np.linspace(xlim[0], xlim[1], 100)
+        y = np.tan(slope_angle) * x
+        ax.plot(x, y, 'k-', linewidth=2)
+
         # グラフの設定
         ax.set_aspect('equal')
         ax.grid(True)

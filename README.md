@@ -4,10 +4,11 @@ This is a Python application that visualizes a robot's configuration and calcula
 
 ## Features
 
-- Real-time visualization of robot links and joints
-- Interactive angle adjustment using sliders
-- Center of mass calculation and visualization
+- Robot visualization with adjustable joint angles
+- Center of mass calculation
 - Ground reaction force calculation
+- Ground slope adjustment (-45° to +45°)
+- Stability analysis on slopes
 - Zoom in/out functionality
 - JSON configuration reload capability
 - Link name labels on the visualization
@@ -34,8 +35,12 @@ python main.py
 
 2. The application window will open with:
    - Robot visualization on the left
-   - Control panel on the right with:
-     - Angle adjustment sliders for each joint
+   - Control panel on the right including:
+     - Reset button to restore initial angles
+     - Ground slope adjustment slider (-45° to +45°)
+     - Joint angle controls
+     - Stability indicator
+     - Ground reaction forces display
      - Zoom controls
      - Configuration reload button
      - Weight information display
